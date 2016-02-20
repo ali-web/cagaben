@@ -4,13 +4,30 @@ import sys
 import time
 from datetime import datetime
 
+from pprint import pprint
+
 
 import dateutil.relativedelta  # For converting months
 
 
 def jsonifyTweetObj(tweetObj):
-	print tweetObj
-	sys.exit()
+	jsonObj = {
+		'topic'   : '',
+		'link'	  : '',
+		'title'	  : '',
+		'content' : '',
+		'twitter' : {
+			'body'		: tweetObj.text,
+			'id' 		: tweetObj.id,
+			'link' 		: tweetObj.permalink,
+			'date'		: tweetObj.date,
+			'favs' 		: tweetObj.favorites,
+			'retweets' 	: tweetObj.retweets,
+			'hashtags' 	: tweetObj.hashtags,
+			'mentions' 	: tweetObj.mentions
+		}
+	}
+	return jsonObj
 
 def subtractMonth(dateStr):
 	# Convert string to date object
@@ -37,6 +54,7 @@ def main():
 	# The current date for the algorithm
 	today = datetime.now().strftime("%Y-%m-%d")
 
+	## Variables that Define the Database ##
 	numTweets = 10
 
 	topics = [
@@ -50,7 +68,7 @@ def main():
 		'wsj',
 		'usnews',
 		'latimes',
-		'usatoday'
+		'usatoday',
 		'gma'
 	]
 
@@ -94,12 +112,15 @@ def main():
 						httpStart = text.find('http')
 						if httpStart != -1:
 							httpEnd = text.find(' ', httpStart)
-							print 'Link in Tweet: '
 							link = text[httpStart : httpEnd]
+							print 'Link in Tweet: '
 							print link
-							print jsonifyTweetObj(tweets[j])
-							sys.exit()
-							finalTweets[topics[t]][newsSources[i]].append(tweets[j])
+
+							jsonTweet = jsonifyTweetObj(tweets[j])
+							jsonTweet['topic'] = topics[t]
+							jsonTweet['link'] = link
+
+							finalTweets[topics[t]][newsSources[i]].append(jsonTweet)
 					
 						if (len(finalTweets[topics[t]][newsSources[i]]) >= numTweets):
 							print 'There are: ' + str(len(finalTweets[topics[t]][newsSources[i]])) + ' Tweets with links'
@@ -108,6 +129,9 @@ def main():
 				# Update the date range for the next iteration
 				dateRange['u'] = dateRange['s']
 				dateRange['s'] = subtractMonth(dateRange['u'])
+
+	print '\n\n\n\n\n\n\n\n\n\n'
+	pprint(finalTweets)
 
 
 

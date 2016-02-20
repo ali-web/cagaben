@@ -20,6 +20,7 @@ class TweetManager:
 			try:
 				tweets = PyQuery(json['items_html'])('div.js-stream-tweet')
 			except Exception, e:
+				print e
 				# There was either an error in the request or nothing returned
 				return results
 			
