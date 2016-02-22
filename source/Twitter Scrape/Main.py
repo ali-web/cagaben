@@ -9,10 +9,13 @@ from pprint import pprint
 
 import dateutil.relativedelta  # For converting months
 
+from pymongo import MongoClient
+
 
 def jsonifyTweetObj(tweetObj):
 	jsonObj = {
 		'topic'   : '',
+		'source'   : '',
 		'link'	  : '',
 		'title'	  : '',
 		'content' : '',
@@ -39,7 +42,9 @@ def subtractMonth(dateStr):
 	return earlierStr
 
 def main():
-	
+	cl = MongoClient()
+	coll = cl.cagaben.story
+
 	def printTweet(descr, t):
 		print descr
 		print "Username: %s" % t.username
@@ -89,7 +94,7 @@ def main():
 				print dateRange
 
 				# Set the tweet criteria
-				tweetCriteria = got.manager.TweetCriteria()\
+				tweetCriteria = got.manager.TweetCriteria() \
 					.setUsername(newsSources[i]) \
 					.setQuerySearch(topics[t]) \
 					.setSince(dateRange['s']) \
@@ -105,7 +110,7 @@ def main():
 					for j in reversed(xrange(len(tweets))):
 						print j
 						text = tweets[j].text
-						
+
 						print '\nTweet: '
 						printTweet("New Tweet:", tweets[j])
 
@@ -119,9 +124,10 @@ def main():
 							jsonTweet = jsonifyTweetObj(tweets[j])
 							jsonTweet['topic'] = topics[t]
 							jsonTweet['link'] = link
+							jsonTweet['source'] = newsSources[i]
 
 							finalTweets[topics[t]][newsSources[i]].append(jsonTweet)
-					
+
 						if (len(finalTweets[topics[t]][newsSources[i]]) >= numTweets):
 							print 'There are: ' + str(len(finalTweets[topics[t]][newsSources[i]])) + ' Tweets with links'
 							break
@@ -132,6 +138,19 @@ def main():
 
 	print '\n\n\n\n\n\n\n\n\n\n'
 	pprint(finalTweets)
+
+
+	# convert finalStories to an array of all tweets and save to a mongo collection called "story"
+	stories = []
+
+	for topic in topics:
+		for source in newsSources:
+			for story in xrange(len(finalTweets[topic][source])):
+				stories.append(finalTweets[topic][source][story])
+
+	for story in stories:
+		coll.save(story)
+
 
 
 
