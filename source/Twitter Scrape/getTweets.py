@@ -11,8 +11,6 @@ import dateutil.relativedelta  # For converting months
 
 from pymongo import MongoClient
 
-import crawler as c
-
 
 def jsonifyTweetObj(tweetObj):
 	jsonObj = {
@@ -45,7 +43,12 @@ def subtractMonth(dateStr):
 
 def main():
 	cl = MongoClient()
-	coll = cl.cagaben.story_with_info
+	coll = cl.cagaben.story
+
+	docs = [{"_id" : 1, "foo" : "HELLO"}, {"_id" : 2, "Blah" : "Bloh"}]
+
+	# for doc in docs:
+	# 	coll.save(doc)
 
 	def printTweet(descr, t):
 		print descr
@@ -69,14 +72,14 @@ def main():
 	]
 
 	newsSources = [
-		#'cnn', #
-		'FoxNews', #
-		'washtimes',#
-		#'wsj', #not good
-		#'usnews',
-		#'latimes', #
-		#'usatoday', #
-		#'gma' #
+		'cnn',
+		'FoxNews',
+		'washtimes',
+		'wsj',
+		'usnews',
+		'latimes',
+		'usatoday',
+		'gma'
 	]
 
 	finalTweets = {}
@@ -96,7 +99,7 @@ def main():
 				print dateRange
 
 				# Set the tweet criteria
-				tweetCriteria = got.manager.TweetCriteria() \
+				tweetCriteria = got.manager.TweetCriteria()\
 					.setUsername(newsSources[i]) \
 					.setQuerySearch(topics[t]) \
 					.setSince(dateRange['s']) \
@@ -112,7 +115,7 @@ def main():
 					for j in reversed(xrange(len(tweets))):
 						print j
 						text = tweets[j].text
-
+						
 						print '\nTweet: '
 						printTweet("New Tweet:", tweets[j])
 
@@ -129,7 +132,7 @@ def main():
 							jsonTweet['source'] = newsSources[i]
 
 							finalTweets[topics[t]][newsSources[i]].append(jsonTweet)
-
+					
 						if (len(finalTweets[topics[t]][newsSources[i]]) >= numTweets):
 							print 'There are: ' + str(len(finalTweets[topics[t]][newsSources[i]])) + ' Tweets with links'
 							break
@@ -141,8 +144,6 @@ def main():
 	print '\n\n\n\n\n\n\n\n\n\n'
 	pprint(finalTweets)
 
-
-	# convert finalStories to an array of all tweets and save to a mongo collection called "story"
 	stories = []
 
 	for topic in topics:
@@ -150,18 +151,8 @@ def main():
 			for story in xrange(len(finalTweets[topic][source])):
 				stories.append(finalTweets[topic][source][story])
 
-
-	#get data from news web page
 	for story in stories:
-		#story['title'], story['content'] =\
-			c.scrapeContent(story['link'], story['source'])
-
-	# for story in stories:
-	# 	print(story)
-    #
-	# # save into mongodb
-	# for story in stories:
-	# 	coll.save(story)
+		coll.save(story)
 
 
 

@@ -28,7 +28,7 @@ def scrapeContent(url, agency):
                 'attr_val': 'articleBody',
             }
         },
-        'foxnews': {
+        'FoxNews': {
             'attr_key': '_class',
             'attr_val': '',
             'cookie': False,
@@ -107,6 +107,9 @@ def scrapeContent(url, agency):
            'Connection': 'keep-alive'}
 
     req = urllib2.Request(url, headers=hdr)
+    a = urllib2.urlopen(req)
+    print a.getcode()
+    return
 
     #necessary for cookie setter websites like nyt
     if config[agency]['cookie']:
@@ -181,8 +184,8 @@ def scrapeContent(url, agency):
         # container = par.find_all(**attributes)
         # html += str(container)
         elements = par.find_all("p", _class="MsoNormal")
-        print attributes
-        print elements; exit()
+        #print attributes
+        #print elements; exit()
         for e in elements:
             html += unicode(e.renderContents(), 'utf-8')
 
@@ -205,7 +208,7 @@ def scrapeContent(url, agency):
 
 
 #url = "http://www.cnn.com/2016/02/09/politics/new-hampshire-primary-highlights/index.html" #cnn not working
-#url = "http://fxn.ws/1KaghNi" #foxnews
+#url = "http://fxn.ws/1KaghNi" #FoxNews
 #url = "http://www.nytimes.com/2016/02/10/us/politics/supreme-court-blocks-obama-epa-coal-emissions-regulations.html" #nytimes
 #url = 'http://abcn.ws/1ITCsGU' #gma
 #url = 'http://usat.ly/1PID3L3' #usatoday
@@ -213,10 +216,10 @@ def scrapeContent(url, agency):
 #url = "http://goo.gl/gr7n9R" #washtimes not working
 url = "http://trib.al/3lutizl" #usnews
 
-title, article = scrapeContent(url, 'usnews')
-
-print title
-print article
+# title, article = scrapeContent(url, 'usnews')
+#
+# print title
+# print article
 
 
 # cl = MongoClient()
