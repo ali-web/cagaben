@@ -15,11 +15,70 @@ from pymongo import MongoClient
 
 
 
+def pageExists(url):
+
+    cj = CookieJar()
+    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+
+
+    # page = requests.get(url)
+    # print page.content
+    # exit()
+
+
+    hdr = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11',
+           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+           'Accept-Charset': 'ISO-8859-1,utf-8;q=0.7,*;q=0.3',
+           'Accept-Encoding': 'none',
+           'Accept-Language': 'en-US,en;q=0.8',
+           'Connection': 'keep-alive'}
+
+    req = urllib2.Request(url, headers=hdr)
+
+    try:
+        a = urllib2.urlopen(req)
+    except urllib2.HTTPError, err:
+        return err.code
+
+    return a.getcode()
+
+
+
 def scrapeContent(url, agency):
 
     config = {
+        'washtimes': {
+            'attr_key': 'class_',
+            'attr_val': '',
+            'cookie': False,
+            'tag': 'p',
+            'parent': {
+                'attr_key': 'class_',
+                'attr_val': 'storyareawrapper',
+            }
+        },
+        'FoxNews': {
+            'attr_key': 'class_',
+            'attr_val': '',
+            'cookie': False,
+            'tag': 'p',
+            'parent': {
+                'attr_key': 'itemprop',
+                'attr_val': 'articleBody',
+            }
+        },
+        'NewsHour': {
+            'attr_key': 'class_',
+            'attr_val': '',
+            'cookie': False,
+            'tag': 'p',
+            'parent': {
+                'attr_key': 'class_',
+                'attr_val': 'entry-content',
+            }
+        },
         'cnn': {
-            'attr_key': '_class',
+            'attr_key': 'class_',
             'attr_val': 'zn-body__paragraph',
             'cookie': False,
             'tag': 'p',
@@ -28,8 +87,43 @@ def scrapeContent(url, agency):
                 'attr_val': 'articleBody',
             }
         },
-        'FoxNews': {
-            'attr_key': '_class',
+        'gma': {
+            'attr_key': 'itemprop',
+            'attr_val': 'articleBody',
+            'cookie': False
+        },
+        'usatoday': {
+            'attr_key': 'class_',
+            'attr_val': '',
+            'cookie': False,
+            'tag': 'p',
+            'parent': {
+                'attr_key': 'itemprop',
+                'attr_val': 'articleBody',
+            }
+        },
+        'usnews': {
+            'attr_key': 'class_',
+            'attr_val': 'MsoNormal',
+            'cookie': False,
+            'tag': 'p',
+            # 'parent': {
+            #     'attr_key': '_class',
+            #     'attr_val': 'block skin-editable',
+            # }
+        },
+        'latimes': {
+            'attr_key': 'class_',
+            'attr_val': '',
+            'cookie': False,
+            'tag': 'p',
+            'parent': {
+                'attr_key': 'itemprop',
+                'attr_val': 'articleBody',
+            }
+        },
+        'CBSNews': {
+            'attr_key': 'class_',
             'attr_val': '',
             'cookie': False,
             'tag': 'p',
@@ -39,17 +133,12 @@ def scrapeContent(url, agency):
             }
         },
         'nytimes': {
-            'attr_key': '_class',
+            'attr_key': 'class_',
             'attr_val': 'story-body-text story-content',
             'cookie': True
         },
-        'gma': {
-            'attr_key': 'itemprop',
-            'attr_val': 'articleBody',
-            'cookie': False
-        },
-        'usatoday': {
-            'attr_key': '_class',
+        'washingtonpost': {
+            'attr_key': 'class_',
             'attr_val': '',
             'cookie': False,
             'tag': 'p',
@@ -58,35 +147,15 @@ def scrapeContent(url, agency):
                 'attr_val': 'articleBody',
             }
         },
-        'latimes': {
-            'attr_key': '_class',
+        'wsj': {
+            'attr_key': 'class_',
             'attr_val': '',
             'cookie': False,
             'tag': 'p',
             'parent': {
-                'attr_key': 'itemprop',
-                'attr_val': 'articleBody',
+                'attr_key': 'class_',
+                'attr_val': 'wsj-snippet-body',
             }
-        },
-        'washtimes': {
-            'attr_key': '_class',
-            'attr_val': '',
-            'cookie': False,
-            'tag': 'p',
-            'parent': {
-                'attr_key': '_class',
-                'attr_val': 'storyareawrapper',
-            }
-        },
-        'usnews': {
-            'attr_key': '_class',
-            'attr_val': 'MsoNormal',
-            'cookie': False,
-            'tag': 'p',
-            # 'parent': {
-            #     'attr_key': '_class',
-            #     'attr_val': 'block skin-editable',
-            # }
         },
     }
 
@@ -107,9 +176,9 @@ def scrapeContent(url, agency):
            'Connection': 'keep-alive'}
 
     req = urllib2.Request(url, headers=hdr)
-    a = urllib2.urlopen(req)
-    print a.getcode()
-    return
+    #a = urllib2.urlopen(req)
+    # print a.getcode()
+    # return
 
     #necessary for cookie setter websites like nyt
     if config[agency]['cookie']:
@@ -154,9 +223,10 @@ def scrapeContent(url, agency):
 
     html = ''
     title = soup.find_all('title')
-    title = title[0].renderContents()
+    title = title[0].renderContents() if len(title) > 0 else ''
     #print title; exit()
     #title = html2text.html2text(str(title))
+
 
     if 'parent' in config[agency]:
         parent_attributes = {
@@ -183,7 +253,8 @@ def scrapeContent(url, agency):
         #print par;exit()
         # container = par.find_all(**attributes)
         # html += str(container)
-        elements = par.find_all("p", _class="MsoNormal")
+        # elements = par.find_all("p", _class="MsoNormal")
+        elements = par.find_all(**attributes)
         #print attributes
         #print elements; exit()
         for e in elements:
@@ -205,18 +276,32 @@ def scrapeContent(url, agency):
 
 
 
-
-
-#url = "http://www.cnn.com/2016/02/09/politics/new-hampshire-primary-highlights/index.html" #cnn not working
-#url = "http://fxn.ws/1KaghNi" #FoxNews
+#1 - washtimes
+#url = "http://goo.gl/gr7n9R"
+#2 - FoxNews
+#url = "http://fxn.ws/1KaghNi"
+#3 - NewsHour
+#url = "http://to.pbs.org/1O2PG2Q"
+#4 - cnn
+#url = "http://www.cnn.com/2016/02/09/politics/new-hampshire-primary-highlights/index.html"
+#5 - gma
+#url = 'http://abcn.ws/1ITCsGU'
+#6 - usatoday
+#url = 'http://usat.ly/1PID3L3'
+#7 - usnews
+#url = "http://trib.al/3lutizl"
+#8 - latimes
+#url = "http://lat.ms/1OMb26s"
+#9 - CBSNews
+#url = "http://cbsn.ws/11InvLJ"
+#10 - nytimes
 #url = "http://www.nytimes.com/2016/02/10/us/politics/supreme-court-blocks-obama-epa-coal-emissions-regulations.html" #nytimes
-#url = 'http://abcn.ws/1ITCsGU' #gma
-#url = 'http://usat.ly/1PID3L3' #usatoday
-#url = "http://lat.ms/1OMb26s" #latimes
-#url = "http://goo.gl/gr7n9R" #washtimes not working
-url = "http://trib.al/3lutizl" #usnews
+#11 - washingtonpost
+#url = "http://wapo.st/1QeLShp"
+#11 - wsj - need subscription
+#url = "http://on.wsj.com/1SaQMy4"
 
-# title, article = scrapeContent(url, 'usnews')
+# title, article = scrapeContent(url, 'washingtonpost')
 #
 # print title
 # print article
