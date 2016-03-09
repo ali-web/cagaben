@@ -11,6 +11,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import scipy.sparse as sp
 import numpy
 
+# Global Variables
+
+
 def read(path):
 	print ("")
 	errors = 0
@@ -42,7 +45,7 @@ def read(path):
 			errors += 1
 	print (errors)
 
-def query_mongodb(db, col):
+def connect_mongodb(db, col):
 
 	# Grab the collection from the database we want
 	col = MongoClient()[db][col]
@@ -50,24 +53,13 @@ def query_mongodb(db, col):
 	# Return the collection cursor, to be queried later
 	return col
 
-	# # Query for all documents in that collection
-	# cursor = col.find()
-
-	# result = []
-	# for document in cursor:
-	# 	# pprint (document["content"][:60])  # Print the first 60 characters of the content
-	# 	result.append(document)
-	# return result
-
 def tf_idf(documents):
 
-	print("Extracting features from the dataset using a sparse vectorizer")
-	t0 = time()
+	# Scikit Learn TF-IDF syntax
 	vectorizer = TfidfVectorizer(encoding='latin1')
 	X_train = vectorizer.fit_transform(documents)
-	print("done in %fs" % (time() - t0))
-	print("n_samples: %d, n_features: %d" % X_train.shape)
 
+	# Get the names of the features (words)
 	feature_names = vectorizer.get_feature_names()
 
 	# Final result to return
@@ -79,7 +71,7 @@ def tf_idf(documents):
 		doc = doc.todense()
 		doc = numpy.array(doc)[0].tolist()
 
-		# Create list to return, it will contain (word, frequency) pairs
+		# Create a list for this story, it will contain (word, frequency) pairs
 		tf = []
 
 		for i in range(len(doc)):
@@ -92,9 +84,8 @@ def tf_idf(documents):
 
 		# Append this document's tf to all the tfs
 		all_tfs.append(tf)
-	print (len(all_tfs))
 	return all_tfs
-	
+
 
 """
 def tf_idf_selector(idf_group, collection)
@@ -121,9 +112,15 @@ def tf_idf_selector(idf_group, collection):
 			# Query the DB for all results that match the given topic
 			db_results = collection.find({}, { "topic":topic , "content":1} )
 
+			# Strip the content out of the database entries, as 
+			# the TF-IDF algorithm only likes documents
 			documents = []
 			for story in db_results:
 				documents.append(story["content"])
+
+			# Filter Stop words
+			# TODO
+
 			tf.append(tf_idf(documents))
 
 		# Flatten the list of lists before returning
@@ -141,8 +138,8 @@ def tf_idf_selector(idf_group, collection):
 
 if __name__ == "__main__":
 
-	col = query_mongodb("news_bias", "stories")
-	# tf_idf(documents)
+	col = connect_mongodb("news_bias", "stories")
+
 	results = tf_idf_selector("A", col)
 	pprint (results)
 	print (len(results))
