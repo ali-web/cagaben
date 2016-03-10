@@ -12,6 +12,20 @@ import scipy.sparse as sp
 import numpy
 
 # Global Variables
+ADAScores = {
+	'washtimes': 35.4, #1
+	'FoxNews': 39.7, #2
+	#'NewsHour', #3
+	'cnn': 56.0, #4
+	'gma': 56.1, #5
+	'usatoday': 63.4, #6
+	#'usnews', #7
+	'washingtonpost': 66.6, #8
+	'latimes': 70.0, #9
+	'CBSNews': 73.7, #10
+	'nytimes': 73.7, #11
+	#'wsj', #12 - not good
+}
 
 
 def read(path):
@@ -56,7 +70,7 @@ def connect_mongodb(db, col):
 def tf_idf(documents):
 
 	# Scikit Learn TF-IDF syntax
-	vectorizer = TfidfVectorizer(encoding='latin1')
+	vectorizer = TfidfVectorizer(encoding='latin1', stop_words='english')
 	X_train = vectorizer.fit_transform(documents)
 
 	# Get the names of the features (words)
@@ -138,7 +152,7 @@ def tf_idf_selector(idf_group, collection):
 
 if __name__ == "__main__":
 
-	col = connect_mongodb("news_bias", "stories")
+	col = connect_mongodb("cagaben7", "story")
 
 	results = tf_idf_selector("A", col)
 	pprint (results)
