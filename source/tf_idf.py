@@ -86,6 +86,33 @@ def tf_idf(documents):
 		all_tfs.append(tf)
 	return all_tfs
 
+def find_sort_data(value, collection):
+	# tf is all of the text frequencies per story, against the defined idf_group
+	tf = []
+
+	# Query DB, looking for all topics to take inventory
+	db_results = collection.find({}, { value : 1 } )
+
+	# Gather unique topics
+	all_topics = list(set(list(story[value] for story in db_results)))
+
+	for topic in all_topics:
+		# Query the DB for all results that match the given topic
+		db_results = collection.find({ value : topic })
+
+		# Strip the content out of the database entries, as 
+		# the TF-IDF algorithm only likes documents
+		documents = []
+		for story in db_results:
+			documents.append(story["content"])
+
+		# Filter Stop words
+		# TODO
+
+		tf.append(tf_idf(documents))
+
+	# Flatten the list of lists before returning
+	return [item for sublist in tf for item in sublist]
 
 """
 def tf_idf_selector(idf_group, collection)
@@ -100,36 +127,19 @@ def tf_idf_selector(idf_group, collection):
 	# tf is all of the text frequencies per story, against the defined idf_group
 	tf = []
 
+	# IDF is all stories under the same Topic
 	if idf_group == "A":
+		return find_sort_data("topic", collection)
 
-		# Query DB, looking for all topics to take inventory
-		db_results = collection.find({}, { "topic": 1 } )
-
-		# Gather unique topics
-		all_topics = list(set(list(story["topic"] for story in db_results)))
-
-		for topic in all_topics:
-			# Query the DB for all results that match the given topic
-			db_results = collection.find({}, { "topic":topic , "content":1} )
-
-			# Strip the content out of the database entries, as 
-			# the TF-IDF algorithm only likes documents
-			documents = []
-			for story in db_results:
-				documents.append(story["content"])
-
-			# Filter Stop words
-			# TODO
-
-			tf.append(tf_idf(documents))
-
-		# Flatten the list of lists before returning
-		return [item for sublist in tf for item in sublist]
-
+	# IDF is all stories under the same political alignment
 	elif idf_group == "B":
 		pass
+
+	# IDF is all stories under the same Agency
 	elif idf_group == "C":
-		pass
+		return find_sort_data("source", collection)
+
+	# IDF is all stories under the same Agency and Topic
 	elif idf_group == "D":
 		pass
 	else:
@@ -141,6 +151,10 @@ if __name__ == "__main__":
 	col = connect_mongodb("news_bias", "stories")
 
 	results = tf_idf_selector("A", col)
+	# results = tf_idf_selector("B", col)
+	# results = tf_idf_selector("C", col)
+	# results = tf_idf_selector("D", col)
+
 	pprint (results)
 	print (len(results))
 
