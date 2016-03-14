@@ -15,17 +15,36 @@ import numpy
 ADAScores = {
 	'washtimes': 35.4, #1
 	'FoxNews': 39.7, #2
+
 	#'NewsHour', #3
 	'cnn': 56.0, #4
 	'gma': 56.1, #5
 	'usatoday': 63.4, #6
 	#'usnews', #7
 	'washingtonpost': 66.6, #8
+
 	'latimes': 70.0, #9
 	'CBSNews': 73.7, #10
 	'nytimes': 73.7, #11
 	#'wsj', #12 - not good
 }
+
+political_alignments = [
+	("Conservative", [
+		"washtimes",
+		"FoxNews"]),
+	("Neutral", [
+		"cnn",
+		"gma",
+		"usatoday",
+		"washingtonpost"]),
+	("Liberal", [
+		"latimes",
+		"CBSNews",
+		"nytimes"])
+]
+
+freq_threshold = 0.1
 
 
 def read(path):
@@ -114,17 +133,19 @@ def tf_idf_selector(idf_group, collection):
 	# tf is all of the text frequencies per story, against the defined idf_group
 	tf = []
 
+	# IDF is all stories under the same Topic
 	if idf_group == "A":
 
 		# Query DB, looking for all topics to take inventory
-		db_results = collection.find({}, { "topic": 1 } )
+		db_results = collection.find({}, { "topic" : 1 } )
 
 		# Gather unique topics
 		all_topics = list(set(list(story["topic"] for story in db_results)))
 
 		for topic in all_topics:
+
 			# Query the DB for all results that match the given topic
-			db_results = collection.find({}, { "topic":topic , "content":1} )
+			db_results = collection.find({ "topic" : topic })
 
 			# Strip the content out of the database entries, as 
 			# the TF-IDF algorithm only likes documents
@@ -132,31 +153,149 @@ def tf_idf_selector(idf_group, collection):
 			for story in db_results:
 				documents.append(story["content"])
 
-			# Filter Stop words
-			# TODO
+			tf.append(tf_idf(documents))
+
+		# Flatten the list of lists before returning
+		return [item for sublist in tf for item in sublist]
+
+	# IDF is all stories under the same political alignment
+	elif idf_group == "B":
+
+		# Populate with queries
+		queries = []
+		for alignment in political_alignments:
+			
+			# Create the general query
+			query = { "source" : { "$in": [] } }
+
+			# Put the agencies into the query
+			query["source"]["$in"] = alignment[1]
+
+			# Add the query to the list of queries
+			queries.append(query)
+
+		# Query the database for the different alignments
+		for alignment_query in queries:
+
+			# Query the DB for all results that match the given source
+			db_results = collection.find(alignment_query)
+
+			# Strip the content out of the database entries, as 
+			# the TF-IDF algorithm only likes documents
+			documents = []
+			for story in db_results:
+				documents.append(story["content"])
 
 			tf.append(tf_idf(documents))
 
 		# Flatten the list of lists before returning
 		return [item for sublist in tf for item in sublist]
 
-	elif idf_group == "B":
-		pass
+	# IDF is all stories under the same Agency
 	elif idf_group == "C":
-		pass
+
+		# Query DB, looking for all sources to take inventory
+		db_results = collection.find({}, { "source" : 1 } )
+
+		# Gather unique sources
+		all_sources = list(set(list(story["source"] for story in db_results)))
+
+		for source in all_sources:
+
+			# Query the DB for all results that match the given source
+			db_results = collection.find({ "source" : source })
+
+			# Strip the content out of the database entries, as 
+			# the TF-IDF algorithm only likes documents
+			documents = []
+			for story in db_results:
+				documents.append(story["content"])
+
+			tf.append(tf_idf(documents))
+
+		# Flatten the list of lists before returning
+		return [item for sublist in tf for item in sublist]
+
+	# IDF is all stories under the same Agency and Topic
 	elif idf_group == "D":
-		pass
+
+		# Query DB, looking for all topics to take inventory
+		db_results1 = collection.find({}, { "topic" : 1 } )
+		# Query DB, looking for all sources to take inventory
+		db_results2 = collection.find({}, { "source" : 1 } )
+
+		# Gather unique topics
+		all_topics = list(set(list(story["topic"] for story in db_results1)))
+		# Gather unique sources
+		all_sources = list(set(list(story["source"] for story in db_results2)))
+
+		for topic in all_topics:
+
+			for source in all_sources:
+
+				# Query the DB for all results that match the given source
+				db_results = collection.find({ "topic" : topic, "source" : source })
+
+				# Strip the content out of the database entries, as 
+				# the TF-IDF algorithm only likes documents
+				documents = []
+				for story in db_results:
+					documents.append(story["content"])
+
+				tf.append(tf_idf(documents))
+
+		# Flatten the list of lists before returning
+		return [item for sublist in tf for item in sublist]
+		
 	else:
 		print ("The selection: " + str(idf_group) + " is not valid")
 		return
 
+def filter_results(tf_stories):
+
+	result = []
+
+	for story in tf_stories:
+
+		# Add an empy list to append these words to
+		result.append([])
+
+		for tf in story:
+
+			# If we have gone below the threshold, stop adding words from that story
+			if tf[1] < freq_threshold:
+				break
+
+			# We are still within our threshold, add words
+			result[-1].append(tf)
+
+	return result
+
+
 if __name__ == "__main__":
 
-	col = connect_mongodb("cagaben7", "story")
+	# col = connect_mongodb("cagaben7", "story")
+	col = connect_mongodb("news_bias", "stories")
 
-	results = tf_idf_selector("A", col)
-	pprint (results)
-	print (len(results))
+	results1 = filter_results(tf_idf_selector("A", col))
+	results2 = filter_results(tf_idf_selector("B", col))
+	results3 = filter_results(tf_idf_selector("C", col))
+	results4 = filter_results(tf_idf_selector("D", col))
+
+	results1 = filter_results(results1)
+	results2 = filter_results(results2)
+	results3 = filter_results(results3)
+	results4 = filter_results(results4)
+
+	for story in range(len(results1)):
+		print ("\nNew Story: ")
+		pprint (filtered_results1[story])
+		pprint (filtered_results2[story])
+		pprint (filtered_results3[story])
+		pprint (filtered_results4[story])
+
+
+
 
 
 
