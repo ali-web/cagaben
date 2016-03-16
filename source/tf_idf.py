@@ -86,7 +86,13 @@ def connect_mongodb(db, col):
 	# Return the collection cursor, to be queried later
 	return col
 
-def tf_idf(documents):
+def tf_idf(stories):
+
+	# Strip the content out of the database entries, as 
+	# the TF-IDF algorithm only likes documents
+	documents = []
+	for story in stories:
+		documents.append(story["content"])
 
 	# Scikit Learn TF-IDF syntax
 	vectorizer = TfidfVectorizer(encoding='latin1', stop_words='english')
@@ -117,7 +123,15 @@ def tf_idf(documents):
 
 		# Append this document's tf to all the tfs
 		all_tfs.append(tf)
-	return all_tfs
+
+	# Filter the results down to some frequency threshold
+	all_tfs = filter_results(all_tfs)
+
+	# Attach TF scores to the stories
+	for i in range(len(stories)):
+		stories[i]["tf"] = all_tfs[i]
+
+	return stories
 
 
 """
@@ -147,13 +161,8 @@ def tf_idf_selector(idf_group, collection):
 			# Query the DB for all results that match the given topic
 			db_results = collection.find({ "topic" : topic })
 
-			# Strip the content out of the database entries, as 
-			# the TF-IDF algorithm only likes documents
-			documents = []
-			for story in db_results:
-				documents.append(story["content"])
-
-			tf.append(tf_idf(documents))
+			# Call the tf_idf function to compute given the current selection
+			tf.append(tf_idf([item for item in db_results]))
 
 		# Flatten the list of lists before returning
 		return [item for sublist in tf for item in sublist]
@@ -277,27 +286,24 @@ if __name__ == "__main__":
 	# col = connect_mongodb("cagaben7", "story")
 	col = connect_mongodb("news_bias", "stories")
 
-	results1 = filter_results(tf_idf_selector("A", col))
-	results2 = filter_results(tf_idf_selector("B", col))
-	results3 = filter_results(tf_idf_selector("C", col))
-	results4 = filter_results(tf_idf_selector("D", col))
+	results1 = tf_idf_selector("A", col)
 
-	results1 = filter_results(results1)
-	results2 = filter_results(results2)
-	results3 = filter_results(results3)
-	results4 = filter_results(results4)
+	for story in results1:
+		# pprint (story)
+		# pprint (story["source"])
+		pprint (story["tf"])
 
-	for story in range(len(results1)):
-		print ("\nNew Story: ")
-		pprint (filtered_results1[story])
-		pprint (filtered_results2[story])
-		pprint (filtered_results3[story])
-		pprint (filtered_results4[story])
+	# pprint (results1)
+	# results2 = filter_results(tf_idf_selector("B", col))
+	# results3 = filter_results(tf_idf_selector("C", col))
+	# results4 = filter_results(tf_idf_selector("D", col))
 
-
-
-
-
+	# for story in range(len(results1)):
+	# 	print ("\nNew Story: ")
+	# 	pprint (filtered_results1[story])
+	# 	pprint (filtered_results2[story])
+	# 	pprint (filtered_results3[story])
+	# 	pprint (filtered_results4[story])
 
 
 
