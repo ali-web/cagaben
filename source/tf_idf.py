@@ -8,10 +8,10 @@ from pymongo import MongoClient
 
 # Datamining Libraries
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn import linear_model
 import scipy.sparse as sp
-import numpy
+import numpy as np
 
-# Global Variables
 ADAScores = {
 	'washtimes': 35.4, #1
 	'FoxNews': 39.7, #2
@@ -35,7 +35,6 @@ political_alignments = [
 		"FoxNews"]),
 	("Neutral", [
 		"cnn",
-		"gma",
 		"usatoday",
 		"washingtonpost"]),
 	("Liberal", [
@@ -44,7 +43,29 @@ political_alignments = [
 		"nytimes"])
 ]
 
-freq_threshold = 0.1
+pol_align_lookup = {
+	"washtimes" : 0,
+	"FoxNews" : 0,
+	"cnn" : 1,
+	"usatoday" : 1,
+	"washingtonpost" : 1,
+	"latimes" : 1,
+	"CBSNews" : 2,
+	"nytimes" : 2
+}
+
+# pol_align_lookup = {
+# 	"washtimes" : 0,
+# 	"FoxNews" : 0,
+# 	"cnn" : 0,
+# 	"usatoday" : 0,
+# 	"washingtonpost" : 1,
+# 	"latimes" : 1,
+# 	"CBSNews" : 1,
+# 	"nytimes" : 1
+# }
+
+freq_threshold = 0.01
 
 
 def read(path):
@@ -108,7 +129,7 @@ def tf_idf(stories):
 
 		# convert the sparse matrix to a Python list
 		doc = doc.todense()
-		doc = numpy.array(doc)[0].tolist()
+		doc = np.array(doc)[0].tolist()
 
 		# Create a list for this story, it will contain (word, frequency) pairs
 		tf = []
@@ -189,13 +210,7 @@ def tf_idf_selector(idf_group, collection):
 			# Query the DB for all results that match the given source
 			db_results = collection.find(alignment_query)
 
-			# Strip the content out of the database entries, as 
-			# the TF-IDF algorithm only likes documents
-			documents = []
-			for story in db_results:
-				documents.append(story["content"])
-
-			tf.append(tf_idf(documents))
+			tf.append(tf_idf([item for item in db_results]))
 
 		# Flatten the list of lists before returning
 		return [item for sublist in tf for item in sublist]
@@ -214,13 +229,7 @@ def tf_idf_selector(idf_group, collection):
 			# Query the DB for all results that match the given source
 			db_results = collection.find({ "source" : source })
 
-			# Strip the content out of the database entries, as 
-			# the TF-IDF algorithm only likes documents
-			documents = []
-			for story in db_results:
-				documents.append(story["content"])
-
-			tf.append(tf_idf(documents))
+			tf.append(tf_idf([item for item in db_results]))
 
 		# Flatten the list of lists before returning
 		return [item for sublist in tf for item in sublist]
@@ -245,13 +254,7 @@ def tf_idf_selector(idf_group, collection):
 				# Query the DB for all results that match the given source
 				db_results = collection.find({ "topic" : topic, "source" : source })
 
-				# Strip the content out of the database entries, as 
-				# the TF-IDF algorithm only likes documents
-				documents = []
-				for story in db_results:
-					documents.append(story["content"])
-
-				tf.append(tf_idf(documents))
+				tf.append(tf_idf([item for item in db_results]))
 
 		# Flatten the list of lists before returning
 		return [item for sublist in tf for item in sublist]
@@ -280,30 +283,94 @@ def filter_results(tf_stories):
 
 	return result
 
+def format_data(tf_stories):
+	global all_words
+
+	X = []
+	y = []
+
+	# Only do this once, for the train set
+	if len(all_words) == 0:
+		# Create list of all words found
+		for story in tf_stories:
+			for tf in story["tf"]:
+				if tf[0] not in all_words:
+					all_words.append(tf[0])
+
+		all_words = sorted(all_words)
+	n_all_words = len(all_words)
+
+	# Populate X where each row is a story
+	for story in tf_stories:
+
+		# Assign value to y
+		# y.append(ADAScores[story["source"]])
+		y.append(pol_align_lookup[story["source"]])
+
+		X.append([0 for i in range(n_all_words)])
+
+		for tf in story["tf"]:
+
+			try: # Because the word may not be in 'all_words'
+
+				# Populate X with frequency at the index of words
+				# X[-1][all_words.index(tf[0])] = tf[1]
+
+				# Populate X with binary existence of words
+				if tf[1] == 0:
+					X[-1][all_words.index(tf[0])] = 0
+				else:
+					X[-1][all_words.index(tf[0])] = 1
+
+				# OTHER METHODS OF POPULATING X
+
+
+			except:
+				continue
+
+	return np.array(X), np.array(y)
 
 if __name__ == "__main__":
+	global all_words
 
 	# col = connect_mongodb("cagaben7", "story")
-	col = connect_mongodb("news_bias", "stories")
+	col = connect_mongodb("news_bias", "story")
 
-	results1 = tf_idf_selector("A", col)
+	tf_results = tf_idf_selector("A", col)
 
-	for story in results1:
-		# pprint (story)
-		# pprint (story["source"])
-		pprint (story["tf"])
+	for agency, alignment in pol_align_lookup.iteritems():
+		print 
+		print agency
 
-	# pprint (results1)
-	# results2 = filter_results(tf_idf_selector("B", col))
-	# results3 = filter_results(tf_idf_selector("C", col))
-	# results4 = filter_results(tf_idf_selector("D", col))
+		# Split the data into Train and Test
+		train_set = []
+		test_set = []
+		for story in tf_results:
+			if story["source"] == agency:
+				test_set.append(story)
+			else:
+				train_set.append(story)
 
-	# for story in range(len(results1)):
-	# 	print ("\nNew Story: ")
-	# 	pprint (filtered_results1[story])
-	# 	pprint (filtered_results2[story])
-	# 	pprint (filtered_results3[story])
-	# 	pprint (filtered_results4[story])
+		# Format the train and test sets into X and y
+		all_words = []  # Clear all_words to be re-set
+		X_train, y_train = format_data(train_set)
+		X_test, y_test = format_data(test_set)
+
+		# Make the logistic model
+		logistic = linear_model.LogisticRegression(C=.5)
+		logistic_regres = logistic.fit(X_train, y_train)
+		print('Logistic score: %f' % logistic_regres.score(X_test, y_test))
+
+		# Make the linear model
+		# linear = linear_model.LinearRegression()
+		# linear_regres = linear.fit(X_train, y_train)
+		# print('Linear score:   %f' % linear_regres.score(X_test, y_test))
+
+		# Predict against the test set
+		# y_predictions = logistic_model.predict(X_test)
+
+
+
 
 
 
