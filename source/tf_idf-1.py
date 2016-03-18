@@ -393,13 +393,9 @@ if __name__ == "__main__":
 
 		# print 
 
-		# for w in range(linear_regres.coef_.shape[0]):
-		# 	if linear_regres.coef_[w] != 0:
-		# 		print str(linear_regres.coef_[w]) + "\t" + all_words[w]
-
-			# for s in range(X_train.shape[1]):
-			# 	# print train_set[s]["tf"][w
-			# 	print "\t" + str(X_train[s][w])
+		for w in range(linear_regres.coef_.shape[0]):
+			if linear_regres.coef_[w] != 0:
+				print str(linear_regres.coef_[w]) + "\t" + all_words[w]
 
 		# Predict against the test set
 		print y_test
