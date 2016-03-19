@@ -11,6 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import linear_model
 import scipy.sparse as sp
 import numpy as np
+import pickle
 
 ADAScores = {
 	'washtimes': 35.4, #1
@@ -337,11 +338,42 @@ def format_data(tf_stories):
 if __name__ == "__main__":
 	global all_words
 
-	# col = connect_mongodb("cagaben7", "story")
-	col = connect_mongodb("news_bias", "story")
+	# If you DO NOT have the MongoDB on your machine, this HAS TO BE set to False
+	database_exists = False
+	if (database_exists):
+		# col = connect_mongodb("cagaben7", "story")
+		col = connect_mongodb("news_bias", "story")
 
-	tf_results = tf_idf_selector("A", col)
+		tf_results_a = tf_idf_selector("A", col)
+		tf_results_b = tf_idf_selector("B", col)
+		tf_results_c = tf_idf_selector("C", col)
+		tf_results_d = tf_idf_selector("D", col)
 
+		# save the tf_results
+		with open('./program_data/tf_results_a.pkl', 'wb') as fid:
+			pickle.dump(tf_results_a, fid)
+		with open('./program_data/tf_results_b.pkl', 'wb') as fid:
+			pickle.dump(tf_results_b, fid)
+		with open('./program_data/tf_results_c.pkl', 'wb') as fid:
+			pickle.dump(tf_results_c, fid)
+		with open('./program_data/tf_results_d.pkl', 'wb') as fid:
+			pickle.dump(tf_results_d, fid)
+
+	else:
+		# load the tf_results
+		with open('./program_data/tf_results_a.pkl', 'rb') as fid:
+			tf_results_a = pickle.load(fid)
+		with open('./program_data/tf_results_b.pkl', 'rb') as fid:
+			tf_results_b = pickle.load(fid)
+		with open('./program_data/tf_results_c.pkl', 'rb') as fid:
+			tf_results_c = pickle.load(fid)
+		with open('./program_data/tf_results_d.pkl', 'rb') as fid:
+			tf_results_d = pickle.load(fid)
+
+	# Pick which tf_results you wish to use:
+	tf_results = tf_results_a
+
+	# Cross validation - run against each agency separately
 	for agency, alignment in pol_align_lookup.iteritems():
 		print 
 		print agency
@@ -376,6 +408,7 @@ if __name__ == "__main__":
 		# print y_train
 		# print X_test
 		# print y_test
+		# END TESTING
 
 		# Make the logistic model
 		# logistic = linear_model.LogisticRegression()
@@ -383,30 +416,16 @@ if __name__ == "__main__":
 		# print('Logistic score: %f' % logistic_regres.score(X_test, y_test))
 		#.Lasso(alpha=0.1)
 
-		# for i in range(X_test):
-		# print (X_test[0])
-
 		# Make the linear model
 		linear = linear_model.Lasso(alpha=.1)
 		linear_regres = linear.fit(X_train, y_train)
 		print('Linear score:   %f' % linear_regres.score(X_test, y_test))
-
-		# print 
-
-		# for w in range(linear_regres.coef_.shape[0]):
-		# 	if linear_regres.coef_[w] != 0:
-		# 		print str(linear_regres.coef_[w]) + "\t" + all_words[w]
-
-			# for s in range(X_train.shape[1]):
-			# 	# print train_set[s]["tf"][w
-			# 	print "\t" + str(X_train[s][w])
 
 		# Predict against the test set
 		print y_test
 		# print logistic_regres.predict(X_test)
 		print linear_regres.predict(X_train[:5])
 
-		# sys.exit()
 
 
 
