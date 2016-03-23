@@ -37,9 +37,9 @@ political_alignments = [
 	("Neutral", [
 		"cnn",
 		"usatoday",
-		"washingtonpost"]),
+		"washingtonpost"],
+		"latimes"),
 	("Liberal", [
-		"latimes",
 		"CBSNews",
 		"nytimes"])
 ]
@@ -47,10 +47,10 @@ political_alignments = [
 pol_align_lookup = {
 	"washtimes" : 0,
 	"FoxNews" : 0,
-	"cnn" : 1,
-	"usatoday" : 1,
-	"washingtonpost" : 1,
-	"latimes" : 1,
+	# "cnn" : 1,
+	# "usatoday" : 1,
+	# "washingtonpost" : 1,
+	# "latimes" : 1,
 	"CBSNews" : 2,
 	"nytimes" : 2
 }
@@ -66,7 +66,7 @@ pol_align_lookup = {
 # 	"nytimes" : 1
 # }
 
-freq_threshold = 0.2
+freq_threshold = 0.01
 
 
 def read(path):
@@ -294,6 +294,11 @@ def format_data(tf_stories):
 	if len(all_words) == 0:
 		# Create list of all words found
 		for story in tf_stories:
+
+			#TESTING CODE TO SKIP STORIES NOT INCLUDED
+			if story["source"] not in pol_align_lookup:
+				continue
+
 			for tf in story["tf"]:
 				if tf[0] not in all_words:
 					all_words.append(tf[0])
@@ -304,13 +309,15 @@ def format_data(tf_stories):
 	# Populate X where each row is a story
 	for story in tf_stories:
 
-		# Assign value to y
-		y.append(ADAScores[story["source"]])
-		# y.append(pol_align_lookup[story["source"]])
+		#TESTING CODE TO SKIP STORIES NOT INCLUDED
+		if story["source"] not in pol_align_lookup:
+			continue
 
-		# JUST FOR TESTING
-		# X.append([ADAScores[story["source"]]*10])
-		# continue
+		# Assign value to y
+		if model == "linear":
+			y.append(ADAScores[story["source"]])
+		elif model == "logistic":
+			y.append(pol_align_lookup[story["source"]])
 
 		X.append([0 for i in range(n_all_words)])
 
@@ -318,14 +325,15 @@ def format_data(tf_stories):
 
 			try: # Because the word may not be in 'all_words'
 
-				# Populate X with frequency at the index of words
-				X[-1][all_words.index(tf[0])] = tf[1]
-
-				# Populate X with binary existence of words
-				# if tf[1] == 0:
-				# 	X[-1][all_words.index(tf[0])] = 0
-				# else:
-				# 	X[-1][all_words.index(tf[0])] = 1
+				if binary_feed:
+					# Populate X with binary existence of words
+					if tf[1] == 0:
+						X[-1][all_words.index(tf[0])] = 0
+					else:
+						X[-1][all_words.index(tf[0])] = 1
+				else:
+						# Populate X with frequency at the index of words
+					X[-1][all_words.index(tf[0])] = tf[1]
 
 				# OTHER METHODS OF POPULATING X
 
@@ -337,41 +345,44 @@ def format_data(tf_stories):
 
 if __name__ == "__main__":
 	global all_words
+	global model
+	global binary_feed
 
 	# If you DO NOT have the MongoDB on your machine, this HAS TO BE set to False
-	database_exists = False
+	database_exists = True
 	if (database_exists):
 		# col = connect_mongodb("cagaben7", "story")
 		col = connect_mongodb("news_bias", "story")
 
 		tf_results_a = tf_idf_selector("A", col)
-		tf_results_b = tf_idf_selector("B", col)
-		tf_results_c = tf_idf_selector("C", col)
-		tf_results_d = tf_idf_selector("D", col)
+		# tf_results_b = tf_idf_selector("B", col)
+		# tf_results_c = tf_idf_selector("C", col)
+		# tf_results_d = tf_idf_selector("D", col)
 
 		# save the tf_results
 		with open('./program_data/tf_results_a.pkl', 'wb') as fid:
 			pickle.dump(tf_results_a, fid)
-		with open('./program_data/tf_results_b.pkl', 'wb') as fid:
-			pickle.dump(tf_results_b, fid)
-		with open('./program_data/tf_results_c.pkl', 'wb') as fid:
-			pickle.dump(tf_results_c, fid)
-		with open('./program_data/tf_results_d.pkl', 'wb') as fid:
-			pickle.dump(tf_results_d, fid)
+		# with open('./program_data/tf_results_b.pkl', 'wb') as fid:
+		# 	pickle.dump(tf_results_b, fid)
+		# with open('./program_data/tf_results_c.pkl', 'wb') as fid:
+		# 	pickle.dump(tf_results_c, fid)
+		# with open('./program_data/tf_results_d.pkl', 'wb') as fid:
+		# 	pickle.dump(tf_results_d, fid)
 
 	else:
 		# load the tf_results
 		with open('./program_data/tf_results_a.pkl', 'rb') as fid:
 			tf_results_a = pickle.load(fid)
-		with open('./program_data/tf_results_b.pkl', 'rb') as fid:
-			tf_results_b = pickle.load(fid)
-		with open('./program_data/tf_results_c.pkl', 'rb') as fid:
-			tf_results_c = pickle.load(fid)
-		with open('./program_data/tf_results_d.pkl', 'rb') as fid:
-			tf_results_d = pickle.load(fid)
+		# with open('./program_data/tf_results_b.pkl', 'rb') as fid:
+		# 	tf_results_b = pickle.load(fid)
+		# with open('./program_data/tf_results_c.pkl', 'rb') as fid:
+		# 	tf_results_c = pickle.load(fid)
+		# with open('./program_data/tf_results_d.pkl', 'rb') as fid:
+		# 	tf_results_d = pickle.load(fid)
 
 	# Pick which tf_results you wish to use:
 	tf_results = tf_results_a
+	binary_feed = True
 
 	# Cross validation - run against each agency separately
 	for agency, alignment in pol_align_lookup.iteritems():
@@ -390,14 +401,9 @@ if __name__ == "__main__":
 			else:
 				train_set.append(story)
 
-		# Format the train and test sets into X and y
-		all_words = []  # Clear all_words to be re-set
-		X_train, y_train = format_data(train_set)
-		X_test, y_test = format_data(test_set)
-
 		# TESTING
-		# X_train, y_train = ([[5], [6], [7], [8]], [5, 6, 7, 8])
-		# X_test, y_test = ([[5], [6], [7], [8]], [5, 6, 7, 8])
+		# X_train, y_train = ([[5, 5], [6, 6], [7, 7], [8, 8]], [5, 6, 7, 8])
+		# X_test, y_test = ([[5, 5], [6, 6], [7, 7], [8, 8]], [5, 6, 7, 8])
 
 		# print X_train.shape
 		# print y_train.shape
@@ -410,21 +416,42 @@ if __name__ == "__main__":
 		# print y_test
 		# END TESTING
 
-		# Make the logistic model
-		# logistic = linear_model.LogisticRegression()
-		# logistic_regres = logistic.fit(X_train, y_train)
-		# print('Logistic score: %f' % logistic_regres.score(X_test, y_test))
-		#.Lasso(alpha=0.1)
+		# LOGISTIC MODEL
+		model = "logistic"
+
+
+		# Format the train and test sets into X and y
+		all_words = []  # Clear all_words to be re-set
+		X_train, y_train = format_data(train_set)
+		X_test, y_test = format_data(test_set)
+		
+		logistic = linear_model.LogisticRegression(
+			solver="newton-cg",
+			# solver="sag",
+			# solver="liblinear",
+			penalty="l2"
+			# multi_class="multinomial"
+			)
+		logistic_regres = logistic.fit(X_train, y_train)
+		# print logistic.coef_
+		# print('LogisticRegression score: %f'
+		# 	% logistic.fit(X_train, y_train).score(X_test, y_test))
+		print('Logistic score: %f' % logistic_regres.score(X_test, y_test))
+		print "Actual:    " + str(y_test)
+		print "Predicted: " + str(logistic_regres.predict(X_test))
+		# END LOGISTIC MODEL
 
 		# Make the linear model
-		linear = linear_model.Lasso(alpha=.1)
-		linear_regres = linear.fit(X_train, y_train)
-		print('Linear score:   %f' % linear_regres.score(X_test, y_test))
+		# model = "linear"
+		# linear = linear_model.Lasso(alpha=1)
+		# linear_regres = linear.fit(X_train, y_train)
+		# print('Linear score: %f' % linear_regres.score(X_test, y_test))
 
 		# Predict against the test set
-		print y_test
-		# print logistic_regres.predict(X_test)
-		print linear_regres.predict(X_train[:5])
+		# print y_test
+		# print linear_regres.predict(X_test)
+
+		# sys.exit()
 
 
 
