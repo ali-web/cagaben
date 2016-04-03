@@ -7,10 +7,18 @@ from pprint import pprint
 from pymongo import MongoClient
 
 # Datamining Libraries
+from sklearn import linear_model, metrics
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn import linear_model
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import GaussianNB
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.neural_network import BernoulliRBM
+from sklearn.pipeline import Pipeline
+from sklearn import svm
+
 import scipy.sparse as sp
 import numpy as np
+import pickle
 
 ADAScores = {
     'washtimes': 35.4, #1
@@ -18,12 +26,12 @@ ADAScores = {
 
     #'NewsHour', #3
     'cnn': 56.0, #4
-    'gma': 56.1, #5
+    # 'gma': 56.1, #5
     'usatoday': 63.4, #6
     #'usnews', #7
     'washingtonpost': 66.6, #8
-
     'latimes': 70.0, #9
+
     'CBSNews': 73.7, #10
     'nytimes': 73.7, #11
     #'wsj', #12 - not good
@@ -36,22 +44,22 @@ political_alignments = [
     ("Neutral", [
         "cnn",
         "usatoday",
-        "washingtonpost"]),
+        "washingtonpost"],
+     "latimes"),
     ("Liberal", [
-        "latimes",
         "CBSNews",
         "nytimes"])
 ]
 
 pol_align_lookup = {
-    # "washtimes" : 0,
-    "FoxNews" : 1,
-    "cnn" : 2,
-    # "usatoday" : 1,
-    # "washingtonpost" : 1,
+    "washtimes" : 0,
+    "FoxNews" : 0,
+    # "cnn" : 1,
+    "usatoday" : 1,
+    "washingtonpost" : 1,
     # "latimes" : 1,
-    # "CBSNews" : 2,
-    # "nytimes" : 2
+    "CBSNews" : 2,
+    "nytimes" : 2
 }
 
 # pol_align_lookup = {
@@ -65,7 +73,7 @@ pol_align_lookup = {
 # 	"nytimes" : 1
 # }
 
-freq_threshold = 0.2
+freq_threshold = 0.01
 
 
 def read(path):
@@ -119,6 +127,14 @@ def tf_idf(stories):
     vectorizer = TfidfVectorizer(encoding='latin1', stop_words='english')
     X_train = vectorizer.fit_transform(documents)
 
+    # Use NGRAMs instead
+    # vectorizer = CountVectorizer(stop_words='english',
+    # 						max_df=0.95,
+    # 						min_df=0.05,
+    # 						analyzer='char',
+    # 						ngram_range = [2,5], binary=True)
+    # X_train = vectorizer.fit_transform(documents)
+
     # Get the names of the features (words)
     feature_names = vectorizer.get_feature_names()
 
@@ -168,8 +184,17 @@ def tf_idf_selector(idf_group, collection):
     # tf is all of the text frequencies per story, against the defined idf_group
     tf = []
 
+    # IDF is all stories in the collection
+    if idf_group == "ALL":
+
+        # Query the DB for all results that match the given topic
+        db_results = collection.find()
+
+        # Call the tf_idf function to compute given the current selection
+        tf.append(tf_idf([item for item in db_results]))
+
     # IDF is all stories under the same Topic
-    if idf_group == "A":
+    elif idf_group == "A":
 
         # Query DB, looking for all topics to take inventory
         db_results = collection.find({}, { "topic" : 1 } )
@@ -184,9 +209,6 @@ def tf_idf_selector(idf_group, collection):
 
             # Call the tf_idf function to compute given the current selection
             tf.append(tf_idf([item for item in db_results]))
-
-        # Flatten the list of lists before returning
-        return [item for sublist in tf for item in sublist]
 
     # IDF is all stories under the same political alignment
     elif idf_group == "B":
@@ -212,9 +234,6 @@ def tf_idf_selector(idf_group, collection):
 
             tf.append(tf_idf([item for item in db_results]))
 
-        # Flatten the list of lists before returning
-        return [item for sublist in tf for item in sublist]
-
     # IDF is all stories under the same Agency
     elif idf_group == "C":
 
@@ -230,9 +249,6 @@ def tf_idf_selector(idf_group, collection):
             db_results = collection.find({ "source" : source })
 
             tf.append(tf_idf([item for item in db_results]))
-
-        # Flatten the list of lists before returning
-        return [item for sublist in tf for item in sublist]
 
     # IDF is all stories under the same Agency and Topic
     elif idf_group == "D":
@@ -256,12 +272,13 @@ def tf_idf_selector(idf_group, collection):
 
                 tf.append(tf_idf([item for item in db_results]))
 
-        # Flatten the list of lists before returning
-        return [item for sublist in tf for item in sublist]
-
     else:
         print ("The selection: " + str(idf_group) + " is not valid")
-        return
+        sys.exit()
+
+    # Flatten the list of lists before returning
+    return [item for sublist in tf for item in sublist]
+
 
 def filter_results(tf_stories):
 
@@ -293,6 +310,11 @@ def format_data(tf_stories):
     if len(all_words) == 0:
         # Create list of all words found
         for story in tf_stories:
+
+            #TESTING CODE TO SKIP SOURCES NOT INCLUDED
+            if story["source"] not in pol_align_lookup:
+                continue
+
             for tf in story["tf"]:
                 if tf[0] not in all_words:
                     all_words.append(tf[0])
@@ -300,16 +322,20 @@ def format_data(tf_stories):
         all_words = sorted(all_words)
     n_all_words = len(all_words)
 
+    print n_all_words
+
     # Populate X where each row is a story
     for story in tf_stories:
 
-        # Assign value to y
-        y.append(ADAScores[story["source"]])
-        # y.append(pol_align_lookup[story["source"]])
+        #TESTING CODE TO SKIP SOURCES NOT INCLUDED
+        if story["source"] not in pol_align_lookup:
+            continue
 
-        # JUST FOR TESTING
-        # X.append([ADAScores[story["source"]]*10])
-        # continue
+        # Assign value to y
+        if model == "linear":
+            y.append(ADAScores[story["source"]])
+        elif model == "logistic":
+            y.append(pol_align_lookup[story["source"]])
 
         X.append([0 for i in range(n_all_words)])
 
@@ -317,16 +343,17 @@ def format_data(tf_stories):
 
             try: # Because the word may not be in 'all_words'
 
-                # Populate X with frequency at the index of words
-                X[-1][all_words.index(tf[0])] = tf[1]
+                if binary_feed:
+                    # Populate X with binary existence of words
+                    if tf[1] == 0:
+                        X[-1][all_words.index(tf[0])] = 0
+                    else:
+                        X[-1][all_words.index(tf[0])] = 1
+                else:
+                    # Populate X with frequency at the index of words
+                    X[-1][all_words.index(tf[0])] = tf[1]
 
-            # Populate X with binary existence of words
-            # if tf[1] == 0:
-            # 	X[-1][all_words.index(tf[0])] = 0
-            # else:
-            # 	X[-1][all_words.index(tf[0])] = 1
-
-            # OTHER METHODS OF POPULATING X
+                # OTHER METHODS OF POPULATING X
 
 
             except:
@@ -336,87 +363,175 @@ def format_data(tf_stories):
 
 if __name__ == "__main__":
     global all_words
+    global model
+    global binary_feed
 
-    col = connect_mongodb("cagaben9", "story")
-    # col = connect_mongodb("cagaben_2_sources1", "story")
-    # col = connect_mongodb("news_bias", "story")
+    # If you DO NOT have the MongoDB on your machine, this HAS TO BE set to False
+    database_exists = False
+    if (database_exists):
+        # col = connect_mongodb("cagaben7", "story")
+        col = connect_mongodb("news_bias", "story")
 
-    tf_results = tf_idf_selector("A", col)
+        tf_results = [[] for i in range(5)]
 
-    # for agency, alignment in pol_align_lookup.iteritems():
-    #     print
-    #     print agency
+        tf_results[0] = tf_idf_selector("ALL", col)
+        # tf_results[1] = tf_idf_selector("A", col)
+        # tf_results[2] = tf_idf_selector("B", col)
+        # tf_results[3] = tf_idf_selector("C", col)
+        # tf_results[4] = tf_idf_selector("D", col)
+
+        # save the tf_results
+        with open('./program_data/tf_results.pkl', 'wb') as fid:
+            pickle.dump(tf_results, fid)
+
+    else:
+        # load the tf_results
+        with open('./program_data/tf_results.pkl', 'rb') as fid:
+            tf_results = pickle.load(fid)
+
+    # Pick which tf_results you wish to use:
+    word_frequencies = tf_results[0]
+    binary_feed = True
+
+
+    # Cross validation - run against each agency separately
+    for agency, alignment in pol_align_lookup.iteritems():
+        print
+        print agency
 
         # Split the data into Train and Test
-
-
-    j = 0
-    for i in range(0, 20):
         train_set = []
         test_set = []
+        for story in word_frequencies:
+            # if story["topic"] != "gun control":
+            # 	continue
 
-        for story in tf_results:
-            if story["topic"] != "gun control":
-                continue
-
-            if i == j:
+            if story["source"] == agency:
                 test_set.append(story)
-            # if story["source"] == agency:
-            #     test_set.append(story)
             else:
                 train_set.append(story)
 
-            j += 1
-
-
-
-        # print len(train_set)
-        # print len(test_set)
-
-        # Format the train and test sets into X and y
-        all_words = []  # Clear all_words to be re-set
-        X_train, y_train = format_data(train_set)
-        X_test, y_test = format_data(test_set)
+            # BAD DATA MINING
+            # if story["source"] == agency:
+            # 	test_set.append(story)
+            # train_set.append(story)
 
         # TESTING
-        # X_train, y_train = ([[5], [6], [7], [8]], [5, 6, 7, 8])
-        # X_test, y_test = ([[5], [6], [7], [8]], [5, 6, 7, 8])
+        # X_train, y_train = ([[5, 5], [6, 6], [7, 7], [8, 8]], [5, 6, 7, 8])
+        # X_test, y_test = ([[5, 5], [6, 6], [7, 7], [8, 8]], [5, 6, 7, 8])
 
-        # print X_train.shape
-        # print y_train.shape
-        # print X_test.shape
-        # print y_test.shape
+
 
         # print X_train
         # print y_train
         # print X_test
         # print y_test
+        # END TESTING
 
-        # Make the logistic model
-        # logistic = linear_model.LogisticRegression()
+        # LOGISTIC MODEL
+        # model = "logistic"
+
+        # Format the train and test sets into X and y
+        # all_words = []  # Clear all_words to be re-set
+        # X_train, y_train = format_data(train_set)
+        # X_test, y_test = format_data(test_set)
+
+        # logistic = linear_model.LogisticRegression(
+        # 	# solver="newton-cg",
+        # 	solver="sag",
+        # 	# solver="liblinear",
+        # 	penalty="l2",
+        # 	C=4000
+        # 	# multi_class="multinomial"
+        # 	)
         # logistic_regres = logistic.fit(X_train, y_train)
+        # print logistic.coef_
+        # print('LogisticRegression score: %f'
+        # 	% logistic.fit(X_train, y_train).score(X_test, y_test))
         # print('Logistic score: %f' % logistic_regres.score(X_test, y_test))
-        #.Lasso(alpha=0.1)
+        # print "Actual:    " + str(y_test)
+        # print "Predicted: " + str(logistic_regres.predict(X_test))
+        # END LOGISTIC MODEL
 
-        # for i in range(X_test):
-        # print (len(X_test))
+        # NAIVE BAYES
 
-        # Make the linear model
-        linear = linear_model.Lasso(alpha=.1)
-        linear_regres = linear.fit(X_train, y_train)
-        print('Linear predicted value: ' + str(linear_regres.predict(X_test)))
+        # model = "logistic"
 
-        print test_set[0]['source']
+        # all_words = []  # Clear all_words to be re-set
+        # X_train, y_train = format_data(train_set)
+        # X_test, y_test = format_data(test_set)
 
-        # print
+        # # gnb = GaussianNB()
+        # mnb = MultinomialNB()
+        # y_pred = mnb.fit(X_train, y_train).predict(X_test)
 
-        # for w in range(linear_regres.coef_.shape[0]):
-        #     if linear_regres.coef_[w] != 0:
-        #         print str(linear_regres.coef_[w]) + "\t" + all_words[w]
-        #
-        # # Predict against the test set
-        # print y_test
-        # # print logistic_regres.predict(X_test)
-        # print linear_regres.predict(X_train[:5])
+        # print "Actual:    " + str(y_test)
+        # print "Predicted: " + str(y_pred)
 
-        # sys.exit()
+        # END NAIVE BAYES
+
+        # SVM
+
+        model = "logistic"
+
+        all_words = []  # Clear all_words to be re-set
+        X_train, y_train = format_data(train_set)
+        X_test, y_test = format_data(test_set)
+
+        clf = svm.SVC()
+        clf.fit(X_train, y_train)
+
+        y_pred = clf.predict(X_test)
+
+        print "Actual:    " + str(y_test)
+        print "Predicted: " + str(y_pred)
+
+
+
+    # END SVM
+
+    # UNSUPERVISED NEURAL NETWORK
+
+    # all_words = []  # Clear all_words to be re-set
+    # X_train, y_train = format_data(train_set)
+    # X_test, y_test = format_data(test_set)
+
+    # # Models we will use
+    # logistic = linear_model.LogisticRegression()
+    # rbm = BernoulliRBM(random_state=0, verbose=True)
+
+    # # classifier = Pipeline(steps=[('rbm', rbm), ('logistic', logistic)])
+
+
+    # rbm.learning_rate = 0.06
+    # rbm.n_iter = 100000000
+
+    # rbm.n_components = 100
+
+    # rbm.fit(X_train)
+
+    # # logistic.C = 6000.0
+
+    # # Training RBM-Logistic Pipeline
+    # # classifier.fit(X_train, y_train)
+
+    # rbm.score_samples(X_train)
+
+
+    # END NEURAL NETWORK
+    # model = "linear"
+    # all_words = []  # Clear all_words to be re-set
+    # X_train, y_train = format_data(train_set)
+    # X_test, y_test = format_data(test_set)
+
+    # # Make the linear model
+
+    # linear = linear_model.Lasso(alpha=5)
+    # linear_regres = linear.fit(X_train, y_train)
+    # print('Linear score: %f' % linear_regres.score(X_test, y_test))
+
+    # # Predict against the test set
+    # print y_test
+    # print linear_regres.predict(X_test)
+
+    # sys.exit()
