@@ -1,8 +1,7 @@
-import got
-
 import sys
 import time
 from datetime import datetime
+import json
 
 from pprint import pprint
 
@@ -12,29 +11,18 @@ import dateutil.relativedelta  # For converting months
 import re
 from pymongo import MongoClient
 
+import twitter
 import crawler as c
 
 
 
 
-# tweetCriteria = got.manager.TweetCriteria() \
-# 	.setUsername('FoxNews') \
-# 	.setMaxTweets(500)
-# #.setSince(dateRange['s']) \
-# #.setUntil(dateRange['u']) \
-# # .setQuerySearch(topics[t]) \
-#
-# # Retrieve the tweets
-# print "Retrieving Tweets . . ."
-# tweets = got.manager.TweetManager.getTweets(tweetCriteria)
-#
-# for t in tweets:
-# 	print t.text
-#
-# sys.exit()
-
-
-
+api = twitter.Api(
+	consumer_key = 'rDfnFU3WZhr3lP3HbMye2V0WB',
+	consumer_secret = '04XhoIx8rVvd3gLacVFkjfAiUv11BZaqxNzXgnSyAcdJPq6QwF',
+	access_token_key = '4094459654-8dOT9XixHLKPAZkSK0utFD3MlBIPJsi5aO274eF',
+	access_token_secret = 'Gnq9z4VWJdNHM6XNHFWkgZY6K23g1jzCQu0OZBpZGqSoa'
+)
 
 
 
@@ -46,14 +34,14 @@ def jsonifyTweetObj(tweetObj):
 		'title'	  : '',
 		'content' : '',
 		'twitter' : {
-			'body'		: tweetObj.text,
-			'id' 		: tweetObj.id,
-			'link' 		: tweetObj.permalink,
-			'date'		: tweetObj.date,
-			'favs' 		: tweetObj.favorites,
-			'retweets' 	: tweetObj.retweets,
-			'hashtags' 	: tweetObj.hashtags,
-			'mentions' 	: tweetObj.mentions
+			'body'		: tweetObj['text'],
+			'id' 		: tweetObj['id'],
+			# 'link' 		: tweetObj.permalink,
+			'date'		: tweetObj['created_at'],
+			'favs' 		: tweetObj.get('favorite_count', None),
+			'retweets' 	: tweetObj.get('retweet_count', None),
+			# 'hashtags' 	: tweetObj.hashtags,
+			# 'mentions' 	: tweetObj.mentions
 		}
 	}
 	return jsonObj
@@ -69,7 +57,7 @@ def subtractMonth(dateStr):
 
 def main():
 	cl = MongoClient()
-	coll = cl.cagaben9.story
+	coll = cl.cagaben6.story
 
 	def printTweet(descr, t):
 		print descr
@@ -86,7 +74,7 @@ def main():
 	today = datetime.now().strftime("%Y-%m-%d")
 
 	## Variables that Define the Database ##
-	numTweets = 50
+	# numTweets = 100
 
 	topics = [
 		'all',
@@ -98,11 +86,11 @@ def main():
 	]
 
 	newsSources = [
-		# 'washtimes', #1
-		'FoxNews', #2
+		'washtimes', #1
+		# 'FoxNews', #2
 		#### 'NewsHour', #3
-		'cnn', #4
-		####'gma', #5
+		# 'cnn', #4
+		###'gma', #5
 		# 'usatoday', #6
 		####'usnews', #7
 		# 'latimes', #8
@@ -122,43 +110,71 @@ def main():
 		for i in xrange(len(newsSources)):
 			finalTweets[topics[t]][newsSources[i]] = []  # Add a list for all the tweets
 
-			# if newsSources[i] in ['gma', 'usnews', 'nytimes']:
-			# 	numTweets = 5
-			# else:
-			# 	numTweets = 10
+			term 				= 'from:' + newsSources[i]
+			geocode				= None
+			since_id			= None
+			max_id				= None
+			until				= None
+			count				= 100
+			lang				= None
+			locale				= None
+			result_type			= 'recent'
+			include_entities	= None
 
-			# initialize the range to be from today to a month ago
-			dateRange = { 's':subtractMonth(today), 'u':today }
+			for r in range(1,10):
 
-			while(len(finalTweets[topics[t]][newsSources[i]]) < numTweets):
-				print dateRange
+				print "round " + str(r) + " started"
 
-				# Set the tweet criteria
-				tweetCriteria = got.manager.TweetCriteria() \
-					.setUsername(newsSources[i]) \
-					.setMaxTweets(500)
-					#.setSince(dateRange['s']) \
-					#.setUntil(dateRange['u']) \
-				# .setQuerySearch(topics[t]) \
+				# if newsSources[i] in ['gma', 'usnews', 'nytimes']:
+				# 	numTweets = 5
+				# else:
+				# 	numTweets = 10
 
-				# Retrieve the tweets
+				# initialize the range to be from today to a month ago
+				# dateRange = { 's':subtractMonth(today), 'u':today }
+
+				# while(len(finalTweets[topics[t]][newsSources[i]]) < numTweets):
+					# print dateRange
+
+					# Set the tweet criteria
+					# tweetCriteria = got.manager.TweetCriteria() \
+					# 	.setUsername(newsSources[i]) \
+					# 	.setMaxTweets(500)
+						#.setSince(dateRange['s']) \
+						#.setUntil(dateRange['u']) \
+					# .setQuerySearch(topics[t]) \
+
+					# Retrieve the tweets
 				print "Retrieving Tweets . . ."
-				tweets = got.manager.TweetManager.getTweets(tweetCriteria)
-				if (len(tweets) != 0):
+
+
+
+				tweets = api.GetSearch(term, geocode, since_id, max_id, until, count, lang, locale, result_type, include_entities)
+
+				# for element in tweets:
+				# 	element = json.loads(str(element))
+					# print json.dumps(element, sort_keys=True, indent=4, separators=(',', ': '))
+
+
+				if len(tweets) != 0:
 
 					# Loop through the results, looking for tweets that match our criteria
-					for j in reversed(xrange(len(tweets))):
-						print j
-						text = tweets[j].text
 
-						print '\nTweet: '
-						printTweet("New Tweet:", tweets[j])
+					for j, tweet in enumerate(tweets):
+						print str(j) + " -"
+						tweet = json.loads(str(tweet))
 
-						httpStart = text.find('http')
-						if httpStart != -1:
+						print str(tweet['id']) + " " + tweet['text']
+						print tweet['created_at']
+						print "\n"
+
+						# httpStart = text.find('http')
+						if 'urls' in tweet:
+
+							link = tweet['urls'].itervalues().next()
 							# httpEnd = text.find(' ', httpStart)
 							# link = text[httpStart : httpEnd]
-							link = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text)[0]
+							# link = re.findall('http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', text)[0]
 
 							if link.find('twimg') != -1:
 								continue
@@ -170,10 +186,19 @@ def main():
 								continue
 								#sys.exit()
 
-							jsonTweet = jsonifyTweetObj(tweets[j])
+							jsonTweet = jsonifyTweetObj(tweet)
 							jsonTweet['topic'] = topics[t]
 							jsonTweet['link'] = link
 							jsonTweet['source'] = newsSources[i]
+
+
+							try:
+								for tw in finalTweets[topics[t]][newsSources[i]]:
+									if tw['title'] == link:
+										print "duplicate story"
+										raise StopIteration
+							except StopIteration:
+								continue
 
 							try:
 								jsonTweet['title'], jsonTweet['content'] = \
@@ -186,31 +211,43 @@ def main():
 								print "news content not available"
 								continue
 							try:
-								for tweet in finalTweets[topics[t]][newsSources[i]]:
-									if tweet['link'] == link:
+								for tw2 in finalTweets[topics[t]][newsSources[i]]:
+									if tw2['title'] == jsonTweet['title']:
 										print "duplicate story"
 										raise StopIteration
 							except StopIteration:
 								continue
 
 
-							if link in finalTweets[topics[t]][newsSources[i]]:
-								print "duplicate story"
-								continue
+							# if link in finalTweets[topics[t]][newsSources[i]]:
+							# 	print "duplicate story"
+							# 	continue
 
 							finalTweets[topics[t]][newsSources[i]].append(jsonTweet)
 
-						if (len(finalTweets[topics[t]][newsSources[i]]) >= numTweets):
-							print 'There are: ' + str(len(finalTweets[topics[t]][newsSources[i]])) + ' Tweets with links'
-							break
 
-				# print "we got this many tweets:"
-				# print len(finalTweets[topics[t]][newsSources[i]])
-				# sys.exit()
+						# if j == len(tweets) - 1:
+						if tweet.get('id'):
+							max_id = tweet['id']
+						# print "yesssssss"
+						# else:
+						# 	print j
+						# 	print len(tweets)
 
-				# Update the date range for the next iteration
-				dateRange['u'] = dateRange['s']
-				dateRange['s'] = subtractMonth(dateRange['u'])
+					print "max_id updated to: " + str(max_id)
+				# exit()
+
+					# if (len(finalTweets[topics[t]][newsSources[i]]) >= numTweets):
+					# 	print 'There are: ' + str(len(finalTweets[topics[t]][newsSources[i]])) + ' Tweets with links'
+					# 	break
+
+			# print "we got this many tweets:"
+			# print len(finalTweets[topics[t]][newsSources[i]])
+			# sys.exit()
+
+			# Update the date range for the next iteration
+			# dateRange['u'] = dateRange['s']
+			# dateRange['s'] = subtractMonth(dateRange['u'])
 
 	print '\n\n\n\n\n\n\n\n\n\n'
 	pprint(finalTweets)
