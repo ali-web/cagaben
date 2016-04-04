@@ -73,7 +73,7 @@ pol_align_lookup = {
 # 	"nytimes" : 1
 # }
 
-freq_threshold = 0.01
+freq_threshold = 0.1
 
 
 def read(path):
@@ -187,7 +187,7 @@ def tf_idf_selector(idf_group, collection):
     # IDF is all stories in the collection
     if idf_group == "ALL":
 
-        # Query the DB for all results that match the given topic
+        # Query the DB for all results
         db_results = collection.find()
 
         # Call the tf_idf function to compute given the current selection
@@ -367,7 +367,7 @@ if __name__ == "__main__":
     global binary_feed
 
     # If you DO NOT have the MongoDB on your machine, this HAS TO BE set to False
-    database_exists = False
+    database_exists = True
     if (database_exists):
         # col = connect_mongodb("cagaben7", "story")
         col = connect_mongodb("news_bias", "story")

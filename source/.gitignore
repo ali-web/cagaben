@@ -1,3 +1,5 @@
 /config.py
 /twitter_connect.py
 *.pyc
+
+*.csv
